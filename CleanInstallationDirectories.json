@@ -1,0 +1,90 @@
+{
+    "tasks": [
+        {
+            "environment": {},
+            "displayName": "Clean Installation Directories",
+            "alwaysRun": false,
+            "continueOnError": false,
+            "condition": "succeeded()",
+            "enabled": true,
+            "timeoutInMinutes": 0,
+            "inputs": {
+                "targetType": "inline",
+                "filePath": "",
+                "arguments": "",
+                "script": "$OldReleasesToKeep = $(OldReleasesToKeep)\n$InstallationRoot = \"$(InstallationRoot)\"\n\n$BaseUrl=\"$(System.TeamFoundationServerUri)\"\n$Project=\"$(System.TeamProject)\"\n$DefinitionId=\"$(Release.DefinitionId)\"\n$DefinitionEnvironmentId=\"$(Release.DefinitionEnvironmentId)\"\n$EnvironmentName = \"$(Release.EnvironmentName)\"\n\n$apiUrl = \"$BaseUrl$Project/_apis/release/deployments?api-version=5.1&definitionId=$DefinitionId&definitionEnvironmentId=$DefinitionEnvironmentId\" \n\n$Deployments= Invoke-RestMethod -Uri $apiUrl -Headers @{\n    Authorization = \"Bearer $env:SYSTEM_ACCESSTOKEN\"\n}\n\n$DeploymentsInProgressOrDeployed= $Deployments.value | \n? {(($_.releaseEnvironment.name -eq $EnvironmentName) `\n   -and (($_.deploymentStatus -eq \"succeeded\") `\n           -or ($_.deploymentStatus -eq \"inProgress\")))} |\n    Select-Object release, deploymentStatus, completedOn -ExpandProperty release |\n    Select-Object name, deploymentStatus, completedOn \n\n$InProgress = $DeploymentsInProgressOrDeployed |\n   Where deploymentStatus -eq \"inProgress\"\n\n$CompletedToKeep = $DeploymentsInProgressOrDeployed |\n   Sort { [DateTime]$_.completedOn } |\n   Select -Last $OldReleasesToKeep\n\n$DeploymentsToKeep = [Array]$InProgress + $CompletedToKeep | \n  % {\"$InstallationRoot\\$($_.name)\"}\n\n$CurrentDirectories = Get-ChildItem $InstallationRoot -Directory | % FullName\n\n$FoldersToKeep = $CurrentDirectories | Where { $DeploymentsToKeep -contains $_ }\n$FoldersToDelete = $CurrentDirectories | Where { $DeploymentsToKeep -notcontains $_ }\n\nWrite-Host @\"\nCleaning Installation Directories\n---------------------------------\n\n\"@\n\n$OldReleasesFound = $FoldersToKeep.Count\n\nif($OldReleasesFound -lt $OldReleasesToKeep) {\n   Write-Host @\"\nOld Releases Found: $OldReleasesFound not greater than Old Releases To Keep: $OldReleasesToKeep\"\n\nOld Releases ..\n----------------\nWrite-Host \"$($FoldersToKeep | Out-String)\n\n\nKeeping ...\n-----------\n$($CurrentDirectories | Out-String)\n\nNOT REMOVING ANYTHING!!\n\"@\n}\nelse {\n   Write-Host @\"\nInstallation Root: $InstallationRoot\nKeeping current and $OldReleasesToKeep Old Releases\n\nKeeping ...\n-----------\n$($FoldersToKeep | Out-String) \n\nRemoving ...\n------------\n$($FoldersToDelete | Out-String)\n\"@\n\n  $FoldersToDelete | Remove-Item -force -recurse  \n}",
+                "errorActionPreference": "stop",
+                "failOnStderr": "false",
+                "ignoreLASTEXITCODE": "false",
+                "pwsh": "false",
+                "workingDirectory": ""
+            },
+            "task": {
+                "id": "e213ff0f-5d5c-4791-802d-52ea3e7be1f1",
+                "versionSpec": "2.*",
+                "definitionType": "task"
+            }
+        }
+    ],
+    "runsOn": [
+        "DeploymentGroup"
+    ],
+    "revision": 1,
+    "createdBy": {
+        "displayName": "paxdev"
+    },
+    "createdOn": "2020-01-10T13:18:23.723Z",
+    "modifiedBy": {
+        "displayName": "paxdev"
+    },
+    "modifiedOn": "2020-01-10T13:18:23.723Z",
+    "id": "1f6f6334-7bde-4e89-8c50-9dda92d75579",
+    "name": "Clean Installation Directories",
+    "version": {
+        "major": 1,
+        "minor": 0,
+        "patch": 0,
+        "isTest": false
+    },
+    "iconUrl": "https://cdn.vsassets.io/v/M162_20200108.1/_content/icon-meta-task.png",
+    "friendlyName": "Clean Installation Directories",
+    "description": "If you deploy multiple release versions under a root directory using the pattern $(InstallationRoot)\\$(Release.ReleaseName).\nThis task will query the API for Deployments on this Release in the same Release Environment.\nIt will find the last $(OldReleasesToKeep) Deployments that Succeeded and the Current InProgress Deployment.\nIt will then check all the folders under $(InstallationRoot).\nIf it finds at least $(OldReleasesToKeep) folders, it will keep those, plus the InProgress Release and delete the others.",
+    "category": "Utility",
+    "definitionType": "metaTask",
+    "author": "paxdev",
+    "demands": [],
+    "groups": [],
+    "inputs": [
+        {
+            "aliases": [],
+            "options": {},
+            "properties": {},
+            "name": "InstallationRoot",
+            "label": "InstallationRoot",
+            "defaultValue": "$(InstallationRoot)",
+            "required": true,
+            "type": "string",
+            "helpMarkDown": "The Root Installation Folder",
+            "groupName": ""
+        },
+        {
+            "aliases": [],
+            "options": {},
+            "properties": {},
+            "name": "OldReleasesToKeep",
+            "label": "OldReleasesToKeep",
+            "defaultValue": "$(OldReleasesToKeep)",
+            "required": true,
+            "type": "string",
+            "helpMarkDown": "Releases to keep in addition to the InProgress Release",
+            "groupName": ""
+        }
+    ],
+    "satisfies": [],
+    "sourceDefinitions": [],
+    "dataSourceBindings": [],
+    "instanceNameFormat": "Task group: Clean Installation Directories",
+    "preJobExecution": {},
+    "execution": {},
+    "postJobExecution": {}
+}
